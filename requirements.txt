@@ -6,4 +6,4 @@ scipy
 sympy
 papermill
 pytest
-
+tensorflow
