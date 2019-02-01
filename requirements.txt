@@ -1,1 +1,9 @@
 nbrmd
+ipywidgets
+matplotlib
+numpy
+scipy
+sympy
+papermill
+pytest
+
