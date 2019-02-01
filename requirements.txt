@@ -1,13 +1,5 @@
-nbrmd
-ipywidgets
 matplotlib
 numpy
 scipy
-sympy
-papermill
-pytest
-tensorflow
-pandas
 scikit-learn
-xgboost
 
