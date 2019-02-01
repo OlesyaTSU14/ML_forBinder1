@@ -1,55 +1,52 @@
-FROM rootproject/root-ubuntu16:6.12
+FROM andrewosh/binder-base
 
-# Run the following commands as super user (root):
+MAINTAINER Matthew Feickert <mfeickert@smu.edu>
+
 USER root
 
-SHELL [ "/bin/bash", "-c" ]
+# Install ROOT prerequisites
+RUN apt-get update
+RUN apt-get install -y \
+    libx11-6 \
+    libxext6 \
+    libxft2 \
+    libxpm4
 
-# Install required packages for notebooks
-RUN apt-get update && \
-    apt-get upgrade -qq -y && \
-    apt-get install -qq -y \
-        python-pip \
-        wget \
-        git && \
-    apt-get -y autoclean && \
-    apt-get -y autoremove
-# Use sudo -H pip instead of pip install --user as jupyter will be called later by USER jovyan
-RUN sudo -H pip install --upgrade --no-cache-dir pip setuptools wheel && \
-    sudo -H pip install --no-cache-dir \
-       jupyter \
-       metakernel \
-       zmq && \
-    rm -rf /var/lib/apt/lists/*
+# Install ROOT additional libraries
+RUN apt-get install -y \
+    r-base \
+    r-base-dev
 
-ENV DISPLAY localhost:0.0.0.0
-# c.f. https://mybinder.readthedocs.io/en/latest/tutorials/dockerfile.html#preparing-your-dockerfile
-ENV NB_USER jovyan
-ENV NB_UID 1000
-ENV HOME /home/${NB_USER}
-WORKDIR /home/${NB_USER}
+# Install R packages
+RUN R -e "install.packages(c('Rcpp','RInside'), repos = \"http://cran.case.edu\")"
 
-RUN adduser --disabled-password \
-    --gecos "Default user" \
-    --uid ${NB_UID} \
-    ${NB_USER}
+# Download and install ROOT master
+WORKDIR /opt
+RUN wget http://root.cern.ch/notebooks/rootbinderdata/root.tar.gz
+RUN tar xzf root.tar.gz
+RUN rm root.tar.gz
 
-# Have Jupyter notebooks launch without command line options
-RUN jupyter notebook --generate-config && \
-    sed -i -e "/allow_root/ a c.NotebookApp.allow_root = True" ~/.jupyter/jupyter_notebook_config.py && \
-    sed -i -e "/custom_display_url/ a c.NotebookApp.custom_display_url = \'http://localhost:8888\'" ~/.jupyter/jupyter_notebook_config.py && \
-    sed -i -e "/c.NotebookApp.ip/ a c.NotebookApp.ip = '0.0.0.0'" ~/.jupyter/jupyter_notebook_config.py && \
-    sed -i -e "/open_browser/ a c.NotebookApp.open_browser = False" ~/.jupyter/jupyter_notebook_config.py
-# Prepare the JupyROOT kernel
-RUN cp ~/.jupyter/jupyter_notebook_config.py ${HOME} && \
-    mkdir -p ${HOME}/.local/share/jupyter/kernels && \
-    cp -r /usr/local/etc/root/notebook/kernels/root ~/.local/share/jupyter/kernels
+# Download and install Fastjet
+RUN wget http://root.cern.ch/notebooks/rootbinderdata/fastjet.tar.gz
+RUN tar xzf fastjet.tar.gz
+RUN rm fastjet.tar.gz
 
-# Make sure the contents of the repo are in ${HOME}
-COPY . ${HOME}
-USER root
-RUN chown -R ${NB_UID} ${HOME}
-USER ${NB_USER}
+USER main
 
-# Specify the default command to run
-CMD ["jupyter", "notebook", "--ip", "0.0.0.0"]
+# Set ROOT environment
+ENV ROOTSYS         "/opt/root"
+ENV PATH            "$ROOTSYS/bin:$ROOTSYS/bin/bin:$PATH"
+ENV LD_LIBRARY_PATH "$ROOTSYS/lib:$LD_LIBRARY_PATH"
+ENV PYTHONPATH      "$ROOTSYS/lib:PYTHONPATH"
+
+# Set ROOT environment for Fastjet
+ENV LD_LIBRARY_PATH "/opt/fastjet/lib:$LD_LIBRARY_PATH"
+ENV ROOT_INCLUDE_PATH "/opt/fastjet/include"
+
+# Customise the ROOTbook
+RUN pip install --upgrade pip
+RUN pip install metakernel
+RUN mkdir -p                                 $HOME/.ipython/kernels
+RUN cp -r $ROOTSYS/etc/notebook/kernels/root $HOME/.ipython/kernels
+RUN mkdir -p                                 $HOME/.ipython/profile_default/static
+RUN cp -r $ROOTSYS/etc/notebook/custom       $HOME/.ipython/profile_default/static
